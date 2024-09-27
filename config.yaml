@@ -1,0 +1,20 @@
+server:
+  port: "3000"
+
+database:
+  host: "localhost"
+  user: "postgres"
+  password: "password"
+  name: "indego_db"
+  port: "5432"
+  sslmode: "disable"
+
+indego:
+  base_url: "https://www.rideindego.com/stations/json/"
+
+weather:
+  base_url: "https://api.openweathermap.org/data/2.5/weather"
+  api_key: "" # This will be replaced by the env variable
+
+auth:
+  token: "supersecrettoken"
