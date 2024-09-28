@@ -11,8 +11,9 @@ import (
 // IndegoService defines the interface for Indego-related business logic.
 type IndegoService interface {
 	GetIndegoData() (models.IndegoData, error)
-	StoreIndegoData(data models.IndegoData) error
-	GetSnapshot(at time.Time) (models.IndegoData, models.WeatherData, error) // Added GetSnapshot function
+	StoreIndegoData(data models.IndegoData) (int, error) // Updated to return snapshot ID
+	StoreSnapshotLink(indegoSnapshotID, weatherSnapshotID int, timestamp time.Time) error
+	GetSnapshot(at time.Time) (models.IndegoData, models.WeatherData, error)
 }
 
 type indegoServiceImpl struct {
@@ -33,16 +34,17 @@ func (s *indegoServiceImpl) GetIndegoData() (models.IndegoData, error) {
 	return s.IndegoClient.FetchIndegoData()
 }
 
-// StoreIndegoData stores the fetched Indego data in the database.
-func (s *indegoServiceImpl) StoreIndegoData(data models.IndegoData) error {
+// StoreIndegoData stores the fetched Indego data in the database and returns the snapshot ID.
+func (s *indegoServiceImpl) StoreIndegoData(data models.IndegoData) (int, error) {
 	return s.DB.StoreIndegoData(data)
+}
+
+// StoreSnapshotLink stores the relationship between Indego and Weather snapshots in the database.
+func (s *indegoServiceImpl) StoreSnapshotLink(indegoSnapshotID, weatherSnapshotID int, timestamp time.Time) error {
+	return s.DB.StoreSnapshotLink(indegoSnapshotID, weatherSnapshotID, timestamp)
 }
 
 // GetSnapshot fetches the first available snapshot of Indego and Weather data at or after the specified time.
 func (s *indegoServiceImpl) GetSnapshot(at time.Time) (models.IndegoData, models.WeatherData, error) {
-	indegoData, weatherData, err := s.DB.FetchSnapshot(at)
-	if err != nil {
-		return models.IndegoData{}, models.WeatherData{}, err
-	}
-	return indegoData, weatherData, nil
+	return s.DB.FetchSnapshot(at)
 }

@@ -32,11 +32,6 @@ func TestLoadConfig_ValidConfig(t *testing.T) {
 	if AppConfig.Weather.BaseURL != "https://api.openweathermap.org/data/2.5/weather" {
 		t.Errorf("Expected Weather base URL 'https://api.openweathermap.org/data/2.5/weather', got %s", AppConfig.Weather.BaseURL)
 	}
-
-	// Validate Auth token config
-	if AppConfig.Auth.Token != "supersecrettoken" {
-		t.Errorf("Expected auth token 'supersecrettoken', got %s", AppConfig.Auth.Token)
-	}
 }
 
 // Test overriding config values with environment variables
@@ -55,10 +50,6 @@ func TestLoadConfig_EnvOverrides(t *testing.T) {
 	// Check if the environment variables have overridden the config values
 	if AppConfig.Weather.APIKey != "testapikey" {
 		t.Errorf("Expected overridden weather API key 'testapikey', got %s", AppConfig.Weather.APIKey)
-	}
-
-	if AppConfig.Auth.Token != "testauthtoken" {
-		t.Errorf("Expected overridden auth token 'testauthtoken', got %s", AppConfig.Auth.Token)
 	}
 
 	// Clean up environment variables

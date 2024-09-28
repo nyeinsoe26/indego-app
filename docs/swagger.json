@@ -1,0 +1,436 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/api/v1/indego-data-fetch-and-store-it-db": {
+            "post": {
+                "description": "Fetch the latest data from Indego and Weather services, store them in the database, and link them.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Indego"
+                ],
+                "summary": "Store the latest Indego and Weather data",
+                "responses": {
+                    "201": {
+                        "description": "Data stored successfully",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.FetchIndegoWeatherResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/stations": {
+            "get": {
+                "description": "Get a snapshot of all stations and weather data at a specified time using the 'at' query parameter.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Indego"
+                ],
+                "summary": "Retrieve a snapshot of all stations at a specific time",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Timestamp in RFC3339 format",
+                        "name": "at",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Snapshot data",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.StationSnapshotResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid time format",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/stations/{kioskId}": {
+            "get": {
+                "description": "Get a snapshot of a specific station's data at a given time.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Indego"
+                ],
+                "summary": "Retrieve a snapshot of a specific station at a specific time",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Kiosk ID",
+                        "name": "kioskId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Timestamp in RFC3339 format",
+                        "name": "at",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Station data",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.SpecificStationSnapshotResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid kioskId or time format",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Station not found",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to fetch snapshot",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dtos.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Internal Server Error"
+                }
+            }
+        },
+        "dtos.FetchIndegoWeatherResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Data stored successfully"
+                }
+            }
+        },
+        "dtos.SpecificStationSnapshotResponse": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string",
+                    "example": "2019-09-01T10:00:00Z"
+                },
+                "station": {
+                    "$ref": "#/definitions/models.StationFeature"
+                },
+                "weather": {
+                    "$ref": "#/definitions/models.WeatherData"
+                }
+            }
+        },
+        "dtos.StationSnapshotResponse": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string",
+                    "example": "2019-09-01T10:00:00Z"
+                },
+                "stations": {
+                    "$ref": "#/definitions/models.IndegoData"
+                },
+                "weather": {
+                    "$ref": "#/definitions/models.WeatherData"
+                }
+            }
+        },
+        "models.Bike": {
+            "type": "object",
+            "properties": {
+                "battery": {
+                    "description": "Battery can be null",
+                    "type": "integer"
+                },
+                "dockNumber": {
+                    "type": "integer"
+                },
+                "isAvailable": {
+                    "type": "boolean"
+                },
+                "isElectric": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.Geometry": {
+            "type": "object",
+            "properties": {
+                "coordinates": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.IndegoData": {
+            "type": "object",
+            "properties": {
+                "features": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.StationFeature"
+                    }
+                },
+                "last_updated": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.StationFeature": {
+            "type": "object",
+            "properties": {
+                "geometry": {
+                    "$ref": "#/definitions/models.Geometry"
+                },
+                "properties": {
+                    "$ref": "#/definitions/models.StationProperties"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.StationProperties": {
+            "type": "object",
+            "properties": {
+                "addressCity": {
+                    "type": "string"
+                },
+                "addressState": {
+                    "type": "string"
+                },
+                "addressStreet": {
+                    "type": "string"
+                },
+                "addressZipCode": {
+                    "type": "string"
+                },
+                "bikes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Bike"
+                    }
+                },
+                "bikesAvailable": {
+                    "type": "integer"
+                },
+                "classicBikesAvailable": {
+                    "type": "integer"
+                },
+                "closeTime": {
+                    "type": "string"
+                },
+                "coordinates": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "docksAvailable": {
+                    "type": "integer"
+                },
+                "electricBikesAvailable": {
+                    "type": "integer"
+                },
+                "eventEnd": {
+                    "type": "string"
+                },
+                "eventStart": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isEventBased": {
+                    "type": "boolean"
+                },
+                "isVirtual": {
+                    "type": "boolean"
+                },
+                "kioskConnectionStatus": {
+                    "type": "string"
+                },
+                "kioskId": {
+                    "type": "integer"
+                },
+                "kioskPublicStatus": {
+                    "type": "string"
+                },
+                "kioskStatus": {
+                    "type": "string"
+                },
+                "kioskType": {
+                    "type": "integer"
+                },
+                "latitude": {
+                    "type": "number"
+                },
+                "longitude": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "openTime": {
+                    "type": "string"
+                },
+                "publicText": {
+                    "type": "string"
+                },
+                "rewardBikesAvailable": {
+                    "type": "integer"
+                },
+                "rewardDocksAvailable": {
+                    "type": "integer"
+                },
+                "smartBikesAvailable": {
+                    "type": "integer"
+                },
+                "timeZone": {
+                    "type": "string"
+                },
+                "totalDocks": {
+                    "type": "integer"
+                },
+                "trikesAvailable": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.WeatherData": {
+            "type": "object",
+            "properties": {
+                "clouds": {
+                    "type": "object",
+                    "properties": {
+                        "all": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "coord": {
+                    "type": "object",
+                    "properties": {
+                        "lat": {
+                            "type": "number"
+                        },
+                        "lon": {
+                            "type": "number"
+                        }
+                    }
+                },
+                "main": {
+                    "type": "object",
+                    "properties": {
+                        "feels_like": {
+                            "type": "number"
+                        },
+                        "humidity": {
+                            "type": "integer"
+                        },
+                        "pressure": {
+                            "type": "integer"
+                        },
+                        "temp": {
+                            "type": "number"
+                        },
+                        "temp_max": {
+                            "type": "number"
+                        },
+                        "temp_min": {
+                            "type": "number"
+                        }
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "weather": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "description": {
+                                "type": "string"
+                            },
+                            "icon": {
+                                "type": "string"
+                            },
+                            "main": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "wind": {
+                    "type": "object",
+                    "properties": {
+                        "deg": {
+                            "type": "integer"
+                        },
+                        "speed": {
+                            "type": "number"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

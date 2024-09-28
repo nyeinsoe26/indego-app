@@ -8,7 +8,6 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"strings"
 
 	_ "github.com/lib/pq"
 	"github.com/nyeinsoe26/indego-app/config"
@@ -57,16 +56,20 @@ func main() {
 		log.Fatalf("Failed to get current migration version: %v", err)
 	}
 
-	// Get sorted migration files
-	migrationFiles, err := getSortedMigrationFiles(".")
-	if err != nil {
-		log.Fatalf("Failed to get migration files: %v", err)
-	}
-
 	// Apply migration based on the flags
 	if *up {
+		log.Println("Migrating Up!")
+		migrationFiles, err := getSortedMigrationFiles("migration", "up")
+		if err != nil {
+			log.Fatalf("Failed to get migration files: %v", err)
+		}
 		applyUpMigrations(db, migrationFiles, currentVersion)
 	} else if *down {
+		log.Println("Migrating Down!")
+		migrationFiles, err := getSortedMigrationFiles("migration", "down")
+		if err != nil {
+			log.Fatalf("Failed to get migration files: %v", err)
+		}
 		applyDownMigration(db, migrationFiles, currentVersion)
 	}
 }
@@ -86,7 +89,7 @@ func getCurrentMigrationVersion(db *sql.DB) (int, error) {
 }
 
 // getSortedMigrationFiles retrieves and sorts the migration SQL files in the correct order
-func getSortedMigrationFiles(directory string) ([]string, error) {
+func getSortedMigrationFiles(directory, direction string) ([]string, error) {
 	var migrationFiles []string
 	files, err := os.ReadDir(directory)
 	if err != nil {
@@ -94,7 +97,7 @@ func getSortedMigrationFiles(directory string) ([]string, error) {
 	}
 
 	// Regex to match migration files like '001.init.up.sql'
-	re := regexp.MustCompile(`^(\d{3}).*\.sql$`)
+	re := regexp.MustCompile(`^(\d{3}).*\.` + direction + `\.sql$`)
 	for _, file := range files {
 		if !file.IsDir() && re.MatchString(file.Name()) {
 			migrationFiles = append(migrationFiles, file.Name())
@@ -116,7 +119,7 @@ func applyUpMigrations(db *sql.DB, migrationFiles []string, currentVersion int) 
 		// Skip already applied migrations
 		if version > currentVersion {
 			fmt.Printf("Applying migration: %s\n", file)
-			if err := runMigration(db, file, "up"); err != nil {
+			if err := runMigration(db, fmt.Sprintf("migration/%s", file)); err != nil {
 				log.Fatalf("Failed to apply migration %s: %v", file, err)
 			}
 			if err := recordMigration(db, version); err != nil {
@@ -142,7 +145,7 @@ func applyDownMigration(db *sql.DB, migrationFiles []string, currentVersion int)
 
 		if version == currentVersion {
 			fmt.Printf("Rolling back migration: %s\n", file)
-			if err := runMigration(db, file, "down"); err != nil {
+			if err := runMigration(db, fmt.Sprintf("migration/%s", file)); err != nil {
 				log.Fatalf("Failed to roll back migration %s: %v", file, err)
 			}
 			if err := removeMigrationRecord(db, currentVersion); err != nil {
@@ -165,8 +168,8 @@ func getVersionFromFile(fileName string) (int, error) {
 	return version, nil
 }
 
-// runMigration executes the up or down SQL portion of the migration file
-func runMigration(db *sql.DB, filePath string, direction string) error {
+// runMigration executes the SQL migration file
+func runMigration(db *sql.DB, filePath string) error {
 	sqlBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read migration file '%s': %v", filePath, err)
@@ -174,19 +177,8 @@ func runMigration(db *sql.DB, filePath string, direction string) error {
 
 	sqlScript := string(sqlBytes)
 
-	// Split the SQL file into up and down sections
-	sections := strings.Split(sqlScript, "--- down ---")
-	var queries string
-	if direction == "up" {
-		queries = sections[0] // First part is for "up"
-	} else if len(sections) > 1 {
-		queries = sections[1] // Second part is for "down"
-	} else {
-		return fmt.Errorf("no down section found in migration file '%s'", filePath)
-	}
-
-	// Execute the queries
-	_, err = db.Exec(queries)
+	// Execute the entire SQL file without splitting into up/down
+	_, err = db.Exec(sqlScript)
 	if err != nil {
 		return fmt.Errorf("failed to execute migration: %v", err)
 	}

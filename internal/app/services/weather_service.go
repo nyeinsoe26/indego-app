@@ -9,7 +9,7 @@ import (
 // WeatherService defines the interface for Weather-related business logic.
 type WeatherService interface {
 	GetWeatherData(lat, lon float64) (models.WeatherData, error)
-	StoreWeatherData(data models.WeatherData) error
+	StoreWeatherData(data models.WeatherData) (int, error) // Updated to return snapshot ID
 }
 
 type weatherServiceImpl struct {
@@ -30,7 +30,7 @@ func (s *weatherServiceImpl) GetWeatherData(lat, lon float64) (models.WeatherDat
 	return s.WeatherClient.FetchWeatherData(lat, lon)
 }
 
-// StoreWeatherData stores the fetched weather data in the database.
-func (s *weatherServiceImpl) StoreWeatherData(data models.WeatherData) error {
+// StoreWeatherData stores the fetched weather data in the database and returns the snapshot ID.
+func (s *weatherServiceImpl) StoreWeatherData(data models.WeatherData) (int, error) {
 	return s.DB.StoreWeatherData(data)
 }

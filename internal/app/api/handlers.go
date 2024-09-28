@@ -2,11 +2,13 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	"github.com/nyeinsoe26/indego-app/internal/app/services"
 )
 
@@ -24,12 +26,24 @@ func NewHandler(indegoService services.IndegoService, weatherService services.We
 	}
 }
 
-// Core logic to fetch and store Indego and weather data, independent of gin.Context
+// FetchAndStoreIndegoWeatherData handles the core logic for fetching and storing Indego and weather data
 func (h *Handler) FetchAndStoreIndegoWeatherData() error {
-	// Fetch Indego data using the Indego service
-	indegoData, err := h.IndegoService.GetIndegoData()
+	const maxRetries = 3
+	var err error
+	var indegoData models.IndegoData
+
+	// Retry loop for fetching Indego data
+	for i := 0; i < maxRetries; i++ {
+		indegoData, err = h.IndegoService.GetIndegoData()
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to fetch Indego data, attempt %d/%d: %v\n", i+1, maxRetries, err)
+		time.Sleep(2 * time.Second) // Delay before retrying
+	}
 	if err != nil {
-		return fmt.Errorf("failed to fetch Indego data: %w", err)
+		// Return early if Indego data fetch fails
+		return fmt.Errorf("failed to fetch Indego data after %d attempts: %w", maxRetries, err)
 	}
 
 	// Fetch Weather data using the Weather service
@@ -38,21 +52,37 @@ func (h *Handler) FetchAndStoreIndegoWeatherData() error {
 		return fmt.Errorf("failed to fetch weather data: %w", err)
 	}
 
-	// Store Indego data in the database
-	err = h.IndegoService.StoreIndegoData(indegoData)
+	// Store Indego data in the database and get the snapshot ID
+	indegoSnapshotID, err := h.IndegoService.StoreIndegoData(indegoData)
 	if err != nil {
 		return fmt.Errorf("failed to store Indego data: %w", err)
 	}
 
-	// Store Weather data in the database
-	err = h.WeatherService.StoreWeatherData(weatherData)
+	// Store Weather data in the database and get the snapshot ID
+	weatherSnapshotID, err := h.WeatherService.StoreWeatherData(weatherData)
 	if err != nil {
 		return fmt.Errorf("failed to store weather data: %w", err)
 	}
 
+	// Link the Indego and Weather snapshots by timestamp
+	err = h.IndegoService.StoreSnapshotLink(indegoSnapshotID, weatherSnapshotID, indegoData.LastUpdated)
+	if err != nil {
+		return fmt.Errorf("failed to store snapshot link: %w", err)
+	}
+
+	log.Println("Successfully stored Indego and weather data with snapshot links.")
 	return nil
 }
 
+// FetchIndegoDataAndStore godoc
+// @Summary Store the latest Indego and Weather data
+// @Description Fetch the latest data from Indego and Weather services, store them in the database, and link them.
+// @Tags Indego
+// @Accept  json
+// @Produce  json
+// @Success 201 {object} dtos.FetchIndegoWeatherResponse "Data stored successfully"
+// @Failure 500 {object} dtos.ErrorResponse "Internal Server Error"
+// @Router /api/v1/indego-data-fetch-and-store-it-db [post]
 // FetchIndegoDataAndStore stores the latest Indego and Weather data in the database
 func (h *Handler) FetchIndegoDataAndStore(c *gin.Context) {
 	// Call the core logic
@@ -64,9 +94,20 @@ func (h *Handler) FetchIndegoDataAndStore(c *gin.Context) {
 	}
 
 	// Respond with a success message if everything goes well
-	c.JSON(http.StatusOK, gin.H{"message": "Data stored successfully"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Data stored successfully"})
 }
 
+// GetStationSnapshot godoc
+// @Summary Retrieve a snapshot of all stations at a specific time
+// @Description Get a snapshot of all stations and weather data at a specified time using the 'at' query parameter.
+// @Tags Indego
+// @Accept  json
+// @Produce  json
+// @Param  at  query  string  true  "Timestamp in RFC3339 format"
+// @Success 200 {object} dtos.StationSnapshotResponse "Snapshot data"
+// @Failure 400 {object} dtos.ErrorResponse "Invalid time format"
+// @Failure 500 {object} dtos.ErrorResponse "Internal Server Error"
+// @Router /api/v1/stations [get]
 // GetStationSnapshot retrieves a snapshot of all stations and weather data at a specific time
 func (h *Handler) GetStationSnapshot(c *gin.Context) {
 	// Parse the 'at' parameter from the query string
@@ -92,6 +133,19 @@ func (h *Handler) GetStationSnapshot(c *gin.Context) {
 	})
 }
 
+// GetSpecificStationSnapshot godoc
+// @Summary Retrieve a snapshot of a specific station at a specific time
+// @Description Get a snapshot of a specific station's data at a given time.
+// @Tags Indego
+// @Accept  json
+// @Produce  json
+// @Param  kioskId  path  string  true  "Kiosk ID"
+// @Param  at  query  string  true  "Timestamp in RFC3339 format"
+// @Success 200 {object} dtos.SpecificStationSnapshotResponse "Station data"
+// @Failure 400 {object} dtos.ErrorResponse "Invalid kioskId or time format"
+// @Failure 404 {object} dtos.ErrorResponse "Station not found"
+// @Failure 500 {object} dtos.ErrorResponse "Failed to fetch snapshot"
+// @Router /api/v1/stations/{kioskId} [get]
 // GetSpecificStationSnapshot retrieves a snapshot of a specific station at a specific time
 func (h *Handler) GetSpecificStationSnapshot(c *gin.Context) {
 	// Extract the kioskId from the URL parameters

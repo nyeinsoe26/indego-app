@@ -31,10 +31,6 @@ type Config struct {
 		BaseURL string `mapstructure:"base_url"`
 		APIKey  string `mapstructure:"api_key"`
 	} `mapstructure:"weather"`
-
-	Auth struct {
-		Token string `mapstructure:"token"`
-	} `mapstructure:"auth"`
 }
 
 var AppConfig Config
@@ -56,11 +52,6 @@ func LoadConfig(cfgPath string) error {
 	// Override Weather API key from environment variable
 	if apiKey := os.Getenv("WEATHER_API_KEY"); apiKey != "" {
 		AppConfig.Weather.APIKey = apiKey
-	}
-
-	// Override Auth token from environment variable
-	if authToken := os.Getenv("AUTH_TOKEN"); authToken != "" {
-		AppConfig.Auth.Token = authToken
 	}
 
 	return nil

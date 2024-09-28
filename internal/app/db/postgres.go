@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -33,10 +35,88 @@ func NewPostgresDB(connStr string) (*PostgresDB, error) {
 	return &PostgresDB{conn: conn}, nil
 }
 
-// StoreIndegoData saves the Indego data snapshot into PostgreSQL.
-func (db *PostgresDB) StoreIndegoData(data models.IndegoData) error {
+// StoreIndegoData stores the Indego data snapshot into PostgreSQL with transaction and rollback.
+func (p *PostgresDB) StoreIndegoData(data models.IndegoData) (int, error) {
 	// Start a transaction
-	tx, err := db.conn.Begin()
+	tx, err := p.conn.Begin()
+	if err != nil {
+		return 0, err
+	}
+
+	// Ensure rollback in case of error
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	query := `
+		INSERT INTO indego_snapshots (timestamp, data) 
+		VALUES ($1, $2)
+		RETURNING id
+	`
+
+	// Convert Indego data to JSON
+	indegoJSON, err := json.Marshal(data)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal Indego data to JSON: %v", err)
+	}
+
+	// Insert the data into the database and return the snapshot ID
+	var indegoSnapshotID int
+	err = tx.QueryRow(query, data.LastUpdated, indegoJSON).Scan(&indegoSnapshotID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to store Indego data: %v", err)
+	}
+
+	// Commit the transaction
+	err = tx.Commit()
+	return indegoSnapshotID, err
+}
+
+// StoreWeatherData stores the weather data snapshot into PostgreSQL with transaction and rollback.
+func (p *PostgresDB) StoreWeatherData(data models.WeatherData) (int, error) {
+	// Start a transaction
+	tx, err := p.conn.Begin()
+	if err != nil {
+		return 0, err
+	}
+
+	// Ensure rollback in case of error
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	query := `
+		INSERT INTO weather_snapshots (timestamp, data) 
+		VALUES ($1, $2)
+		RETURNING id
+	`
+
+	// Convert weather data to JSON
+	weatherJSON, err := json.Marshal(data)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal weather data to JSON: %v", err)
+	}
+
+	// Insert the data into the database and return the snapshot ID
+	var weatherSnapshotID int
+	err = tx.QueryRow(query, time.Now().UTC(), weatherJSON).Scan(&weatherSnapshotID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to store weather data: %v", err)
+	}
+
+	// Commit the transaction
+	err = tx.Commit()
+	return weatherSnapshotID, err
+}
+
+// StoreSnapshotLink stores the relationship between Indego and weather snapshots with transaction and rollback.
+func (p *PostgresDB) StoreSnapshotLink(indegoSnapshotID, weatherSnapshotID int, timestamp time.Time) error {
+	// Start a transaction
+	tx, err := p.conn.Begin()
 	if err != nil {
 		return err
 	}
@@ -49,72 +129,58 @@ func (db *PostgresDB) StoreIndegoData(data models.IndegoData) error {
 	}()
 
 	query := `
-		INSERT INTO indego_snapshots (timestamp, data)
-		VALUES ($1, $2)
+		INSERT INTO snapshots (timestamp, indego_snapshot_id, weather_snapshot_id) 
+		VALUES ($1, $2, $3)
 	`
-	_, err = tx.Exec(query, time.Now(), data)
+
+	_, err = tx.Exec(query, timestamp, indegoSnapshotID, weatherSnapshotID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to store snapshot link: %v", err)
 	}
 
-	// Commit the transaction if successful
+	// Commit the transaction
 	err = tx.Commit()
 	return err
 }
 
-// StoreWeatherData saves the weather data snapshot into PostgreSQL.
-func (db *PostgresDB) StoreWeatherData(data models.WeatherData) error {
-	// Start a transaction
-	tx, err := db.conn.Begin()
-	if err != nil {
-		return err
-	}
-
-	// Ensure rollback in case of error
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-		}
-	}()
-
+// FetchSnapshot fetches the first available snapshot of Indego and Weather data at or after the specified time.
+func (p *PostgresDB) FetchSnapshot(at time.Time) (models.IndegoData, models.WeatherData, error) {
 	query := `
-		INSERT INTO weather_snapshots (timestamp, data)
-		VALUES ($1, $2)
-	`
-	_, err = tx.Exec(query, time.Now(), data)
-	if err != nil {
-		return err
-	}
-
-	// Commit the transaction if successful
-	err = tx.Commit()
-	return err
-}
-
-// FetchSnapshot retrieves the first snapshot of data on or after the specified time.
-func (db *PostgresDB) FetchSnapshot(at time.Time) (models.IndegoData, models.WeatherData, error) {
-	// Example SQL query to retrieve the snapshot:
-	// SELECT indego_data, weather_data FROM snapshots WHERE timestamp >= $1 ORDER BY timestamp ASC LIMIT 1
-	var indegoData models.IndegoData
-	var weatherData models.WeatherData
-
-	query := `
-		SELECT indego_data, weather_data
-		FROM snapshots
-		WHERE timestamp >= $1
-		ORDER BY timestamp ASC
+		SELECT i.data, w.data 
+		FROM snapshots s
+		JOIN indego_snapshots i ON s.indego_snapshot_id = i.id
+		JOIN weather_snapshots w ON s.weather_snapshot_id = w.id
+		WHERE s.timestamp >= $1
+		ORDER BY s.timestamp ASC
 		LIMIT 1
 	`
 
-	err := db.conn.QueryRow(query, at).Scan(&indegoData, &weatherData)
+	var indegoJSON, weatherJSON []byte
+	err := p.conn.QueryRow(query, at).Scan(&indegoJSON, &weatherJSON)
 	if err != nil {
-		return models.IndegoData{}, models.WeatherData{}, err
+		if err == sql.ErrNoRows {
+			return models.IndegoData{}, models.WeatherData{}, fmt.Errorf("no snapshot found for the given time: %v", at)
+		}
+		return models.IndegoData{}, models.WeatherData{}, fmt.Errorf("failed to fetch snapshot: %v", err)
+	}
+
+	// Unmarshal the JSON data into the respective models
+	var indegoData models.IndegoData
+	var weatherData models.WeatherData
+	err = json.Unmarshal(indegoJSON, &indegoData)
+	if err != nil {
+		return models.IndegoData{}, models.WeatherData{}, fmt.Errorf("failed to unmarshal Indego data: %v", err)
+	}
+
+	err = json.Unmarshal(weatherJSON, &weatherData)
+	if err != nil {
+		return models.IndegoData{}, models.WeatherData{}, fmt.Errorf("failed to unmarshal weather data: %v", err)
 	}
 
 	return indegoData, weatherData, nil
 }
 
-// Close closes the database connection
+// Close closes the database connection.
 func (p *PostgresDB) Close() error {
 	return p.conn.Close()
 }

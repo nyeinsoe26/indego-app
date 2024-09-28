@@ -4,7 +4,7 @@ server:
 database:
   host: "localhost"
   user: "postgres"
-  password: "password"
+  password: "pass123"
   name: "indego_db"
   port: "5432"
   sslmode: "disable"
@@ -14,7 +14,4 @@ indego:
 
 weather:
   base_url: "https://api.openweathermap.org/data/2.5/weather"
-  api_key: "" # This will be replaced by the env variable
-
-auth:
-  token: "supersecrettoken"
+  api_key: "01d648cf01dbfff013982e461ed5aaf5"
