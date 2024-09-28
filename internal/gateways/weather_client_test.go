@@ -10,7 +10,9 @@ import (
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 )
 
-// Test the Weather client with a mocked API response
+// TestFetchWeatherData tests the Weather client by mocking an API response from the OpenWeather API.
+// It verifies that the client correctly parses and returns the weather data, including temperature
+// and weather descriptions.
 func TestFetchWeatherData(t *testing.T) {
 	// Mock response from the OpenWeather API
 	mockResponse := models.WeatherData{
@@ -38,7 +40,7 @@ func TestFetchWeatherData(t *testing.T) {
 		},
 	}
 
-	// Create a test server to simulate the API
+	// Create a test server to simulate the OpenWeather API
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(mockResponse)
 	}))
@@ -47,23 +49,26 @@ func TestFetchWeatherData(t *testing.T) {
 	// Override the Weather base URL in config for testing
 	config.AppConfig.Weather.BaseURL = server.URL
 
-	// Test the client
+	// Test the Weather client
 	weatherClient := NewWeatherClient()
 	data, err := weatherClient.FetchWeatherData(44.34, 10.99)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	// Validate the fetched data
+	// Validate the fetched temperature
 	if data.Main.Temp != 25.5 {
 		t.Errorf("Expected temperature 25.5, got %f", data.Main.Temp)
 	}
+
+	// Validate the weather description
 	if data.Weather[0].Description != "clear sky" {
 		t.Errorf("Expected weather 'clear sky', got %s", data.Weather[0].Description)
 	}
 }
 
-// Test error handling when API is down
+// TestFetchWeatherData_Failure tests the Weather client's error handling by simulating a server error.
+// It verifies that the client correctly returns an error when the API returns a failure response.
 func TestFetchWeatherData_Failure(t *testing.T) {
 	// Simulate a server error with a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +79,7 @@ func TestFetchWeatherData_Failure(t *testing.T) {
 	// Override the Weather base URL in config for testing
 	config.AppConfig.Weather.BaseURL = server.URL
 
-	// Test the client
+	// Test the Weather client
 	weatherClient := NewWeatherClient()
 	_, err := weatherClient.FetchWeatherData(44.34, 10.99)
 	if err == nil {

@@ -9,13 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestGetWeatherData_Success tests the successful retrieval of weather data
+// from the mock WeatherClient, expecting no errors and correct data.
 func TestGetWeatherData_Success(t *testing.T) {
 	// Create mock WeatherClient
 	mockWeatherClient := new(m.MockWeatherClient)
 	expectedWeatherData := models.WeatherData{}
 	mockWeatherClient.On("FetchWeatherData", 39.9526, -75.1652).Return(expectedWeatherData, nil)
 
-	// Create mock Database
+	// Create mock Database (not used in this test)
 	mockDB := new(m.MockDatabase)
 
 	// Create the WeatherService
@@ -30,12 +32,14 @@ func TestGetWeatherData_Success(t *testing.T) {
 	mockWeatherClient.AssertExpectations(t)
 }
 
+// TestGetWeatherData_Error tests the scenario where fetching weather data
+// from the mock WeatherClient results in an error.
 func TestGetWeatherData_Error(t *testing.T) {
 	// Create mock WeatherClient
 	mockWeatherClient := new(m.MockWeatherClient)
 	mockWeatherClient.On("FetchWeatherData", 39.9526, -75.1652).Return(models.WeatherData{}, errors.New("failed to fetch weather data"))
 
-	// Create mock Database
+	// Create mock Database (not used in this test)
 	mockDB := new(m.MockDatabase)
 
 	// Create the WeatherService
@@ -50,6 +54,8 @@ func TestGetWeatherData_Error(t *testing.T) {
 	mockWeatherClient.AssertExpectations(t)
 }
 
+// TestStoreWeatherData_Success tests successfully storing weather data
+// in the mock database, expecting no errors and the correct snapshot ID.
 func TestStoreWeatherData_Success(t *testing.T) {
 	// Create mock WeatherClient (not used in this test)
 	mockWeatherClient := new(m.MockWeatherClient)
@@ -72,6 +78,8 @@ func TestStoreWeatherData_Success(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
+// TestStoreWeatherData_Error tests the scenario where storing weather data
+// in the mock database results in an error.
 func TestStoreWeatherData_Error(t *testing.T) {
 	// Create mock WeatherClient (not used in this test)
 	mockWeatherClient := new(m.MockWeatherClient)

@@ -1,7 +1,6 @@
 package api_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -82,12 +81,11 @@ func resetMocks() {
 	mockWeatherClient.Calls = nil
 }
 
-// Test FetchIndegoDataAndStore - Success
+// TestFunctional_FetchIndegoDataAndStore_Success tests the full flow of fetching and storing Indego
+// and weather data in the database, returning a success response when everything works.
 func TestFunctional_FetchIndegoDataAndStore_Success(t *testing.T) {
 	resetMocks()
-	fmt.Println("###################")
-	fmt.Println("====== hello ==========")
-	fmt.Println("================")
+
 	// Mock data
 	indegoData := models.IndegoData{LastUpdated: time.Now()}
 	weatherData := models.WeatherData{}
@@ -103,7 +101,7 @@ func TestFunctional_FetchIndegoDataAndStore_Success(t *testing.T) {
 	resp, err := http.Post(getTestURL("/api/v1/indego-data-fetch-and-store-it-db"), "application/json", nil)
 	assert.NoError(t, err)
 
-	// Assert that the status code is 200 OK
+	// Assert that the status code is 201 Created
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	mockDB.AssertExpectations(t)
@@ -111,7 +109,8 @@ func TestFunctional_FetchIndegoDataAndStore_Success(t *testing.T) {
 	mockWeatherClient.AssertExpectations(t)
 }
 
-// Test FetchIndegoDataAndStore - Indego Data Fetch Error
+// TestFunctional_FetchIndegoDataAndStore_IndegoError tests the case where fetching Indego data fails,
+// ensuring the handler doesn't proceed to weather fetching or database storage, and returns a 500 error.
 func TestFunctional_FetchIndegoDataAndStore_IndegoError(t *testing.T) {
 	resetMocks()
 
@@ -135,7 +134,8 @@ func TestFunctional_FetchIndegoDataAndStore_IndegoError(t *testing.T) {
 	mockIndegoClient.AssertExpectations(t)
 }
 
-// Test GetStationSnapshot - Success
+// TestFuncional_GetStationSnapshot_Success tests fetching station and weather snapshot data
+// for a valid 'at' query parameter, expecting a 200 OK response and correct data from the DB.
 func TestFuncional_GetStationSnapshot_Success(t *testing.T) {
 	resetMocks()
 
@@ -156,7 +156,8 @@ func TestFuncional_GetStationSnapshot_Success(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
-// Test GetStationSnapshot - Invalid Time Format
+// TestFunctional_GetStationSnapshot_InvalidDateFormat tests that if the 'at' query parameter
+// is invalid, the handler returns a 400 Bad Request response.
 func TestFunctional_GetStationSnapshot_InvalidDateFormat(t *testing.T) {
 	resetMocks()
 
@@ -168,7 +169,8 @@ func TestFunctional_GetStationSnapshot_InvalidDateFormat(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-// Test GetSpecificStationSnapshot - Success
+// TestFunctional_GetSpecificStationSnapshot_Success tests fetching a specific station snapshot
+// by its kioskId and time, ensuring a 200 OK response if the station is found.
 func TestFunctional_GetSpecificStationSnapshot_Success(t *testing.T) {
 	resetMocks()
 
@@ -196,7 +198,8 @@ func TestFunctional_GetSpecificStationSnapshot_Success(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
-// Test GetSpecificStationSnapshot - Invalid KioskId
+// TestFunctional_GetSpecificStationSnapshot_InvalidKioskId tests the scenario where an invalid (non-numeric)
+// kioskId is passed, and the handler should return a 400 Bad Request response.
 func TestFunctional_GetSpecificStationSnapshot_InvalidKioskId(t *testing.T) {
 	resetMocks()
 
@@ -208,7 +211,8 @@ func TestFunctional_GetSpecificStationSnapshot_InvalidKioskId(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-// Test GetSpecificStationSnapshot - Station Not Found
+// TestFunctional_GetSpecificStationSnapshot_StationNotFound tests the case where a specific station
+// snapshot is requested but the station is not found in the data, expecting a 404 Not Found response.
 func TestFunctional_GetSpecificStationSnapshot_StationNotFound(t *testing.T) {
 	resetMocks()
 

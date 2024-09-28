@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nyeinsoe26/indego-app/internal/app/dtos"
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	"github.com/nyeinsoe26/indego-app/internal/app/services"
 )
@@ -83,18 +84,21 @@ func (h *Handler) FetchAndStoreIndegoWeatherData() error {
 // @Success 201 {object} dtos.FetchIndegoWeatherResponse "Data stored successfully"
 // @Failure 500 {object} dtos.ErrorResponse "Internal Server Error"
 // @Router /api/v1/indego-data-fetch-and-store-it-db [post]
-// FetchIndegoDataAndStore stores the latest Indego and Weather data in the database
 func (h *Handler) FetchIndegoDataAndStore(c *gin.Context) {
 	// Call the core logic
 	err := h.FetchAndStoreIndegoWeatherData()
 	if err != nil {
 		// Respond with an error message if something goes wrong
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, dtos.ErrorResponse{
+			Error: err.Error(),
+		})
 		return
 	}
 
 	// Respond with a success message if everything goes well
-	c.JSON(http.StatusCreated, gin.H{"message": "Data stored successfully"})
+	c.JSON(http.StatusCreated, dtos.FetchIndegoWeatherResponse{
+		Message: "Data stored successfully",
+	})
 }
 
 // GetStationSnapshot godoc
@@ -108,28 +112,31 @@ func (h *Handler) FetchIndegoDataAndStore(c *gin.Context) {
 // @Failure 400 {object} dtos.ErrorResponse "Invalid time format"
 // @Failure 500 {object} dtos.ErrorResponse "Internal Server Error"
 // @Router /api/v1/stations [get]
-// GetStationSnapshot retrieves a snapshot of all stations and weather data at a specific time
 func (h *Handler) GetStationSnapshot(c *gin.Context) {
 	// Parse the 'at' parameter from the query string
 	timeStr := c.Query("at")
 	at, err := time.Parse(time.RFC3339, timeStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid time format"})
+		c.JSON(http.StatusBadRequest, dtos.ErrorResponse{
+			Error: "Invalid time format",
+		})
 		return
 	}
 
 	// Fetch the snapshot from the service
 	indegoData, weatherData, err := h.IndegoService.GetSnapshot(at)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch snapshot"})
+		c.JSON(http.StatusInternalServerError, dtos.ErrorResponse{
+			Error: "Failed to fetch snapshot",
+		})
 		return
 	}
 
 	// Respond with the snapshot data
-	c.JSON(http.StatusOK, gin.H{
-		"at":       at.Format(time.RFC3339),
-		"stations": indegoData,
-		"weather":  weatherData,
+	c.JSON(http.StatusOK, dtos.StationSnapshotResponse{
+		At:       at.Format(time.RFC3339),
+		Stations: indegoData,
+		Weather:  weatherData,
 	})
 }
 
@@ -146,7 +153,6 @@ func (h *Handler) GetStationSnapshot(c *gin.Context) {
 // @Failure 404 {object} dtos.ErrorResponse "Station not found"
 // @Failure 500 {object} dtos.ErrorResponse "Failed to fetch snapshot"
 // @Router /api/v1/stations/{kioskId} [get]
-// GetSpecificStationSnapshot retrieves a snapshot of a specific station at a specific time
 func (h *Handler) GetSpecificStationSnapshot(c *gin.Context) {
 	// Extract the kioskId from the URL parameters
 	kioskIDStr := c.Param("kioskId")
@@ -154,7 +160,9 @@ func (h *Handler) GetSpecificStationSnapshot(c *gin.Context) {
 	// Convert kioskID from string to int
 	kioskID, err := strconv.Atoi(kioskIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid kioskId format"})
+		c.JSON(http.StatusBadRequest, dtos.ErrorResponse{
+			Error: "Invalid kioskId format",
+		})
 		return
 	}
 
@@ -162,36 +170,44 @@ func (h *Handler) GetSpecificStationSnapshot(c *gin.Context) {
 	timeStr := c.Query("at")
 	at, err := time.Parse(time.RFC3339, timeStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid time format"})
+		c.JSON(http.StatusBadRequest, dtos.ErrorResponse{
+			Error: "Invalid time format",
+		})
 		return
 	}
 
 	// Fetch the snapshot from the service
 	indegoData, weatherData, err := h.IndegoService.GetSnapshot(at)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch snapshot"})
+		c.JSON(http.StatusInternalServerError, dtos.ErrorResponse{
+			Error: "Failed to fetch snapshot",
+		})
 		return
 	}
 
 	// Find the specific station by kioskId
-	var stationData interface{}
+	var stationData models.StationFeature
+	found := false
 	for _, station := range indegoData.Features {
 		if station.Properties.ID == kioskID {
 			stationData = station
+			found = true
 			break
 		}
 	}
 
 	// If the station is not found, return 404
-	if stationData == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Station not found"})
+	if !found {
+		c.JSON(http.StatusNotFound, dtos.ErrorResponse{
+			Error: "Station not found",
+		})
 		return
 	}
 
 	// Respond with the station snapshot data
-	c.JSON(http.StatusOK, gin.H{
-		"at":      at.Format(time.RFC3339),
-		"station": stationData,
-		"weather": weatherData,
+	c.JSON(http.StatusOK, dtos.SpecificStationSnapshotResponse{
+		At:      at.Format(time.RFC3339),
+		Station: stationData,
+		Weather: weatherData,
 	})
 }

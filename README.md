@@ -4,6 +4,24 @@ This application fetches and stores real-time data from the Indego bike share sy
 
 Refer to [design_documentation/design_documentation.md](design_documentation/design_documentation.md) for implementation details.
 
+**NOTE**:
+
+Codes written in the following directories are just boilerplate codes I had copied from Auth0.
+```
+- internal
+  |- app
+    |- api
+      |- callback
+        |- callback.go
+      |- login
+        |- login.go
+      |- logout
+        |- logout.go
+      |- user
+        |- user.go
+```
+
+
 ## Prerequisites
 
 Ensure you have the following prerequisites installed on your machine:
@@ -18,7 +36,6 @@ Ensure you have the following prerequisites installed on your machine:
      go install github.com/swaggo/swag/cmd/swag@latest
      ```
    - **Note**: You only need to install Swag CLI if you plan to modify or regenerate the Swagger documentation. If you're just running the app, the documentation is already generated, and you can view it at `http://localhost:3000/swagger/index.html#/`.
-
 
 ## Setting Up the Environment
 
@@ -89,12 +106,12 @@ curl --request POST \
   --data '{
     "client_id": "<YOUR_CLIENT_ID>",
     "client_secret": "<YOUR_CLIENT_SECRET>",
-    "audience": "https://your-api-identifier",
+    "audience": "<YOUR_AUTH0_AUDIENCE>",
     "grant_type": "client_credentials"
   }'
 ```
 
-Replace <YOUR-AUTH0-DOMAIN>, <YOUR_CLIENT_ID>, and <YOUR_CLIENT_SECRET> with actual values provided in `.env`.
+Replace <YOUR-AUTH0-DOMAIN>, <YOUR_CLIENT_ID>, <YOUR_CLIENT_SECRET> and <YOUR_AUTH0_AUDIENCE> with actual values provided in `.env`.
 The response should include an access token:
 ```bash
 {
@@ -118,7 +135,7 @@ You can use your Google account to log in. After successful login, you can hit t
 ```
 http://localhost:3000/api/v1/stations?at=2019-09-01T10:00:00Z
 
-http://localhost:3000/api/v1/stations/3a06?at=2019-09-01T10:00:00Z
+http://localhost:3000/api/v1/stations/3306?at=2019-09-01T10:00:00Z
 ```
 Session-based authentication will be handled automatically after login.
 

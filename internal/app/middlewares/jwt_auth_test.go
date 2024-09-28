@@ -23,7 +23,7 @@ var mockJWKS = `{
 	]
 }`
 
-// Mock HTTP server for JWKS
+// setupJWKSMockServer sets up a mock JWKS HTTP server to simulate the response from the JWKS endpoint.
 func setupJWKSMockServer(response string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -31,7 +31,8 @@ func setupJWKSMockServer(response string) *httptest.Server {
 	}))
 }
 
-// TestGetPublicKey_Success tests successful retrieval of the RSA public key
+// TestGetPublicKey_Success tests the successful retrieval of the RSA public key
+// by providing a valid JWT token with the correct `kid` present in the mock JWKS response.
 func TestGetPublicKey_Success(t *testing.T) {
 	// Mock token with header containing kid
 	token := &jwt.Token{
@@ -54,7 +55,9 @@ func TestGetPublicKey_Success(t *testing.T) {
 	assert.IsType(t, &rsa.PublicKey{}, pubKey)
 }
 
-// TestGetPublicKey_KidNotFound tests the case where the kid is not found in the JWKS
+// TestGetPublicKey_KidNotFound tests the case where the `kid` in the JWT token
+// does not match any `kid` in the JWKS, simulating a scenario where the token
+// cannot find the correct public key to validate.
 func TestGetPublicKey_KidNotFound(t *testing.T) {
 	// Mock token with a kid that does not exist
 	token := &jwt.Token{
@@ -77,7 +80,9 @@ func TestGetPublicKey_KidNotFound(t *testing.T) {
 	assert.EqualError(t, err, "unable to find appropriate key")
 }
 
-// TestGetPublicKey_InvalidExponent tests the case where the exponent is invalid
+// TestGetPublicKey_InvalidExponent tests the case where the `e` (exponent) value
+// in the JWKS response is invalid, simulating a corrupted JWKS response, which should
+// result in an error when trying to parse the public key.
 func TestGetPublicKey_InvalidExponent(t *testing.T) {
 	// Modify mock JWKS to have an invalid exponent (not valid base64url encoding)
 	invalidJWKS := `{

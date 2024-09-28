@@ -11,7 +11,9 @@ import (
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 )
 
-// Test the Indego client with mocked API response
+// TestFetchIndegoData tests the Indego client's ability to fetch data from the Indego API
+// using a mocked API response. It verifies that the fetched station data and bike data match
+// the expected mock values, ensuring the client correctly handles a successful API response.
 func TestFetchIndegoData(t *testing.T) {
 	// Mock response from the Indego API
 	mockResponse := models.IndegoData{
@@ -48,7 +50,7 @@ func TestFetchIndegoData(t *testing.T) {
 		},
 	}
 
-	// Create a test server to simulate the API
+	// Create a test server to simulate the Indego API
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(mockResponse)
 	}))
@@ -64,16 +66,15 @@ func TestFetchIndegoData(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	// Validate the fetched data
+	// Validate the fetched station data
 	if len(data.Features) == 0 {
 		t.Fatalf("Expected station data, got none")
 	}
-
 	if data.Features[0].Properties.Name != "Welcome Park, NPS" {
 		t.Errorf("Expected station name 'Welcome Park, NPS', got %s", data.Features[0].Properties.Name)
 	}
 
-	// Validate bike data
+	// Validate bike data within the station feature
 	if len(data.Features[0].Properties.Bikes) == 0 {
 		t.Fatalf("Expected bike data, got none")
 	}
@@ -82,7 +83,9 @@ func TestFetchIndegoData(t *testing.T) {
 	}
 }
 
-// Test error handling when API is down
+// TestFetchIndegoData_Failure tests the error handling in the Indego client when the API returns
+// a failure response, such as a 500 Internal Server Error. It verifies that the client correctly
+// handles and returns the error when the API is unavailable or fails.
 func TestFetchIndegoData_Failure(t *testing.T) {
 	// Simulate a server error with a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

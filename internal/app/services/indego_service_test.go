@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// TestGetIndegoData_Success tests the successful retrieval of Indego data
+// from the mock IndegoClient, expecting no errors and correct data.
 func TestGetIndegoData_Success(t *testing.T) {
 	// Mock IndegoClient
 	mockClient := new(m.MockIndegoClient)
@@ -32,6 +34,8 @@ func TestGetIndegoData_Success(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+// TestGetIndegoData_Error tests the scenario where fetching Indego data
+// results in an error, expecting an error response.
 func TestGetIndegoData_Error(t *testing.T) {
 	// Mock IndegoClient
 	mockClient := new(m.MockIndegoClient)
@@ -49,6 +53,8 @@ func TestGetIndegoData_Error(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+// TestStoreIndegoData_Success tests successfully storing Indego data
+// in the mock database, expecting no errors and the correct snapshot ID.
 func TestStoreIndegoData_Success(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
@@ -71,6 +77,8 @@ func TestStoreIndegoData_Success(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
+// TestStoreIndegoData_Error tests the scenario where storing Indego data
+// in the mock database results in an error.
 func TestStoreIndegoData_Error(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
@@ -92,6 +100,8 @@ func TestStoreIndegoData_Error(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
+// TestStoreSnapshotLink_Success tests successfully storing the snapshot link
+// between Indego and Weather data in the mock database, expecting no errors.
 func TestStoreSnapshotLink_Success(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
@@ -108,6 +118,8 @@ func TestStoreSnapshotLink_Success(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
+// TestStoreSnapshotLink_Error tests the scenario where storing the snapshot link
+// in the mock database results in an error.
 func TestStoreSnapshotLink_Error(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
@@ -125,6 +137,8 @@ func TestStoreSnapshotLink_Error(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
+// TestGetSnapshot_Success tests the successful retrieval of Indego and Weather snapshots
+// from the mock database, expecting no errors and correct data.
 func TestGetSnapshot_Success(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
@@ -148,6 +162,8 @@ func TestGetSnapshot_Success(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
+// TestGetSnapshot_Error tests the scenario where fetching a snapshot
+// from the mock database results in an error.
 func TestGetSnapshot_Error(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
