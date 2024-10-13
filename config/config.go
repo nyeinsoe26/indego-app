@@ -39,6 +39,8 @@ var AppConfig Config
 func LoadConfig(cfgPath string) error {
 	viper.SetConfigFile(cfgPath)
 	viper.AutomaticEnv()
+
+	// server.port from config yaml can be replaced by SERVER_PORT from env
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if err := viper.ReadInConfig(); err != nil {

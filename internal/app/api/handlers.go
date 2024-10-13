@@ -53,25 +53,10 @@ func (h *Handler) FetchAndStoreIndegoWeatherData() error {
 		return fmt.Errorf("failed to fetch weather data: %w", err)
 	}
 
-	// Store Indego data in the database and get the snapshot ID
-	indegoSnapshotID, err := h.IndegoService.StoreIndegoData(indegoData)
-	if err != nil {
-		return fmt.Errorf("failed to store Indego data: %w", err)
-	}
-
-	// Store Weather data in the database and get the snapshot ID
-	weatherSnapshotID, err := h.WeatherService.StoreWeatherData(weatherData)
-	if err != nil {
-		return fmt.Errorf("failed to store weather data: %w", err)
-	}
-
-	// Link the Indego and Weather snapshots by timestamp
-	err = h.IndegoService.StoreSnapshotLink(indegoSnapshotID, weatherSnapshotID, indegoData.LastUpdated)
+	_, err = h.IndegoService.StoreSnapshot(indegoData, weatherData, indegoData.LastUpdated)
 	if err != nil {
 		return fmt.Errorf("failed to store snapshot link: %w", err)
 	}
-
-	log.Println("Successfully stored Indego and weather data with snapshot links.")
 	return nil
 }
 
@@ -124,7 +109,7 @@ func (h *Handler) GetStationSnapshot(c *gin.Context) {
 	}
 
 	// Fetch the snapshot from the service
-	indegoData, weatherData, err := h.IndegoService.GetSnapshot(at)
+	indegoData, weatherData, snapshotTime, err := h.IndegoService.GetSnapshot(at)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dtos.ErrorResponse{
 			Error: "Failed to fetch snapshot",
@@ -134,7 +119,7 @@ func (h *Handler) GetStationSnapshot(c *gin.Context) {
 
 	// Respond with the snapshot data
 	c.JSON(http.StatusOK, dtos.StationSnapshotResponse{
-		At:       at.Format(time.RFC3339),
+		At:       snapshotTime.Format(time.RFC3339),
 		Stations: indegoData,
 		Weather:  weatherData,
 	})
@@ -177,7 +162,7 @@ func (h *Handler) GetSpecificStationSnapshot(c *gin.Context) {
 	}
 
 	// Fetch the snapshot from the service
-	indegoData, weatherData, err := h.IndegoService.GetSnapshot(at)
+	indegoData, weatherData, snapshotTime, err := h.IndegoService.GetSnapshot(at)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dtos.ErrorResponse{
 			Error: "Failed to fetch snapshot",
@@ -206,7 +191,7 @@ func (h *Handler) GetSpecificStationSnapshot(c *gin.Context) {
 
 	// Respond with the station snapshot data
 	c.JSON(http.StatusOK, dtos.SpecificStationSnapshotResponse{
-		At:      at.Format(time.RFC3339),
+		At:      snapshotTime.Format(time.RFC3339),
 		Station: stationData,
 		Weather: weatherData,
 	})

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	m "github.com/nyeinsoe26/indego-app/internal/mocks"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +59,7 @@ func TestGetIndegoData_Error(t *testing.T) {
 func TestStoreIndegoData_Success(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
-	expectedSnapshotID := 123
+	expectedSnapshotID := uuid.New()
 	indegoData := models.IndegoData{
 		LastUpdated: time.Now(),
 		Features:    []models.StationFeature{},
@@ -86,7 +87,7 @@ func TestStoreIndegoData_Error(t *testing.T) {
 		LastUpdated: time.Now(),
 		Features:    []models.StationFeature{},
 	}
-	mockDB.On("StoreIndegoData", indegoData).Return(0, errors.New("error storing data"))
+	mockDB.On("StoreIndegoData", indegoData).Return(uuid.Nil, errors.New("error storing data"))
 
 	// Create the service
 	service := NewIndegoService(nil, mockDB)
@@ -100,45 +101,61 @@ func TestStoreIndegoData_Error(t *testing.T) {
 	mockDB.AssertExpectations(t)
 }
 
-// TestStoreSnapshotLink_Success tests successfully storing the snapshot link
-// between Indego and Weather data in the mock database, expecting no errors.
-func TestStoreSnapshotLink_Success(t *testing.T) {
+// TestStoreSnapshot_Success tests successfully storing a snapshot of both Indego and Weather data
+// in the mock database, expecting no errors and the correct snapshot UUID.
+func TestStoreSnapshot_Success(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
-	mockDB.On("StoreSnapshotLink", 123, 456, mock.Anything).Return(nil)
+	expectedSnapshotID := uuid.New()
+	indegoData := models.IndegoData{
+		LastUpdated: time.Now(),
+		Features:    []models.StationFeature{},
+	}
+	weatherData := models.WeatherData{}
+	timestamp := time.Now()
+
+	mockDB.On("StoreSnapshot", indegoData, weatherData, timestamp).Return(expectedSnapshotID, nil)
 
 	// Create the service
 	service := NewIndegoService(nil, mockDB)
 
 	// Call the method
-	err := service.StoreSnapshotLink(123, 456, time.Now())
+	actualSnapshotID, err := service.StoreSnapshot(indegoData, weatherData, timestamp)
 
 	// Assert the results
 	assert.NoError(t, err)
+	assert.Equal(t, expectedSnapshotID, actualSnapshotID)
 	mockDB.AssertExpectations(t)
 }
 
-// TestStoreSnapshotLink_Error tests the scenario where storing the snapshot link
+// TestStoreSnapshot_Error tests the scenario where storing a snapshot
 // in the mock database results in an error.
-func TestStoreSnapshotLink_Error(t *testing.T) {
+func TestStoreSnapshot_Error(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
-	mockDB.On("StoreSnapshotLink", 123, 456, mock.Anything).Return(errors.New("error storing snapshot link"))
+	indegoData := models.IndegoData{
+		LastUpdated: time.Now(),
+		Features:    []models.StationFeature{},
+	}
+	weatherData := models.WeatherData{}
+	timestamp := time.Now()
+
+	mockDB.On("StoreSnapshot", indegoData, weatherData, timestamp).Return(uuid.Nil, errors.New("error storing snapshot"))
 
 	// Create the service
 	service := NewIndegoService(nil, mockDB)
 
 	// Call the method
-	err := service.StoreSnapshotLink(123, 456, time.Now())
+	_, err := service.StoreSnapshot(indegoData, weatherData, timestamp)
 
 	// Assert the results
 	assert.Error(t, err)
-	assert.EqualError(t, err, "error storing snapshot link")
+	assert.EqualError(t, err, "error storing snapshot")
 	mockDB.AssertExpectations(t)
 }
 
 // TestGetSnapshot_Success tests the successful retrieval of Indego and Weather snapshots
-// from the mock database, expecting no errors and correct data.
+// from the mock database, expecting no errors and correct data, including the snapshot time.
 func TestGetSnapshot_Success(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
@@ -147,18 +164,20 @@ func TestGetSnapshot_Success(t *testing.T) {
 		Features:    []models.StationFeature{},
 	}
 	expectedWeatherData := models.WeatherData{}
-	mockDB.On("FetchSnapshot", mock.Anything).Return(expectedIndegoData, expectedWeatherData, nil)
+	expectedSnapshotTime := time.Now()
+	mockDB.On("FetchSnapshot", mock.Anything).Return(expectedIndegoData, expectedWeatherData, expectedSnapshotTime, nil)
 
 	// Create the service
 	service := NewIndegoService(nil, mockDB)
 
 	// Call the method
-	actualIndegoData, actualWeatherData, err := service.GetSnapshot(time.Now())
+	actualIndegoData, actualWeatherData, actualSnapshotTime, err := service.GetSnapshot(time.Now())
 
 	// Assert the results
 	assert.NoError(t, err)
 	assert.Equal(t, expectedIndegoData, actualIndegoData)
 	assert.Equal(t, expectedWeatherData, actualWeatherData)
+	assert.WithinDuration(t, expectedSnapshotTime, actualSnapshotTime, time.Second)
 	mockDB.AssertExpectations(t)
 }
 
@@ -167,13 +186,13 @@ func TestGetSnapshot_Success(t *testing.T) {
 func TestGetSnapshot_Error(t *testing.T) {
 	// Mock Database
 	mockDB := new(m.MockDatabase)
-	mockDB.On("FetchSnapshot", mock.Anything).Return(models.IndegoData{}, models.WeatherData{}, errors.New("error fetching snapshot"))
+	mockDB.On("FetchSnapshot", mock.Anything).Return(models.IndegoData{}, models.WeatherData{}, time.Time{}, errors.New("error fetching snapshot"))
 
 	// Create the service
 	service := NewIndegoService(nil, mockDB)
 
 	// Call the method
-	_, _, err := service.GetSnapshot(time.Now())
+	_, _, _, err := service.GetSnapshot(time.Now())
 
 	// Assert the results
 	assert.Error(t, err)

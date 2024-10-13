@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/nyeinsoe26/indego-app/internal/app/dtos"
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	m "github.com/nyeinsoe26/indego-app/internal/mocks"
@@ -28,13 +29,12 @@ func TestFetchIndegoDataAndStore_Success(t *testing.T) {
 	// Mock data
 	indegoData := models.IndegoData{LastUpdated: time.Now()}
 	weatherData := models.WeatherData{}
+	mockUUID := uuid.New()
 
 	// Set up mock expectations
 	mockIndegoService.On("GetIndegoData").Return(indegoData, nil)
 	mockWeatherService.On("GetWeatherData", 39.9526, -75.1652).Return(weatherData, nil)
-	mockIndegoService.On("StoreIndegoData", indegoData).Return(1, nil)
-	mockWeatherService.On("StoreWeatherData", weatherData).Return(1, nil)
-	mockIndegoService.On("StoreSnapshotLink", 1, 1, indegoData.LastUpdated).Return(nil)
+	mockIndegoService.On("StoreSnapshot", indegoData, weatherData, indegoData.LastUpdated).Return(mockUUID, nil)
 
 	// Set up the handler
 	handler := NewHandler(mockIndegoService, mockWeatherService)
@@ -107,9 +107,10 @@ func TestGetStationSnapshot_Success(t *testing.T) {
 		Features:    []models.StationFeature{},
 	}
 	weatherData := models.WeatherData{}
+	snapshotTime := time.Date(2024, time.September, 28, 18, 47, 50, 0, time.UTC)
 
 	// Set up mock expectations
-	mockIndegoService.On("GetSnapshot", mock.Anything).Return(indegoData, weatherData, nil)
+	mockIndegoService.On("GetSnapshot", mock.Anything).Return(indegoData, weatherData, snapshotTime, nil)
 
 	// Set up the handler
 	handler := NewHandler(mockIndegoService, mockWeatherService)
@@ -129,20 +130,12 @@ func TestGetStationSnapshot_Success(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 
-	// Compare the expected and actual LastUpdated times, focusing only on the time parts that matter
-	expectedTime := indegoData.LastUpdated
+	// Compare the expected and actual LastUpdated times
+	expectedTime := snapshotTime
 	actualTime, err := time.Parse(time.RFC3339, response.At)
 	assert.NoError(t, err)
 
-	// Compare Year, Month, Day, Hour, Minute, and Second
-	assert.Equal(t, expectedTime.Year(), actualTime.Year())
-	assert.Equal(t, expectedTime.Month(), actualTime.Month())
-	assert.Equal(t, expectedTime.Day(), actualTime.Day())
-	assert.Equal(t, expectedTime.Hour(), actualTime.Hour())
-	assert.Equal(t, expectedTime.Minute(), actualTime.Minute())
-	assert.Equal(t, expectedTime.Second(), actualTime.Second())
-
-	// Assert that the rest of the data is correct
+	assert.Equal(t, expectedTime, actualTime)
 	assert.Equal(t, indegoData.Features, response.Stations.Features)
 
 	mockIndegoService.AssertExpectations(t)
@@ -184,7 +177,9 @@ func TestGetSpecificStationSnapshot_StationNotFound(t *testing.T) {
 
 	indegoData := models.IndegoData{}
 	weatherData := models.WeatherData{}
-	mockIndegoService.On("GetSnapshot", mock.Anything).Return(indegoData, weatherData, nil)
+	snapshotTime := time.Now()
+
+	mockIndegoService.On("GetSnapshot", mock.Anything).Return(indegoData, weatherData, snapshotTime, nil)
 
 	handler := NewHandler(mockIndegoService, mockWeatherService)
 

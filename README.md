@@ -151,5 +151,5 @@ go test -v -coverprofile=coverage.out -run='^Test[^Functional]' ./...
 
 ### 2. Functional Tests
 ```bash
-go test ./internal/app/api/functional_test.go
+go test -v ./internal/app/api/functional_test.go
 ```

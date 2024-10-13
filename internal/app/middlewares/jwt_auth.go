@@ -9,13 +9,14 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"os"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
 var (
-	auth0Domain = "https://dev-1v3v1ylf1aw62bhu.us.auth0.com/"
-	audience    = "https://indego-app.com/api/v1"
+	auth0Domain = fmt.Sprintf("https://%s/", os.Getenv("AUTH0_DOMAIN"))
+	audience    = os.Getenv("AUTH0_AUDIENCE")
 )
 
 // JWKS structure to hold the keys from Auth0

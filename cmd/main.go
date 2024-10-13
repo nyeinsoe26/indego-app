@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/gob"
 	"flag"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -29,16 +34,35 @@ func init() {
 }
 
 // Initialize and start the cronjob to fetch data every hour using the handler
-func startCronJob(handler *api.Handler) {
+func startCronJob(ctx context.Context, wg *sync.WaitGroup, handler *api.Handler) {
+	runCronJob := func() {
+		if err := handler.FetchAndStoreIndegoWeatherData(); err != nil {
+			log.Printf("Cronjob failed: %v", err)
+		} else {
+			log.Println("Cronjob successfully fetched and stored data")
+		}
+	}
+
+	log.Printf("Starting Cronjob to fetch Indego Weather data...")
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
+		// immediately run once upon startup
+		runCronJob()
+
+		// Create a ticker that ticks every hour
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+
 		for {
-			err := handler.FetchAndStoreIndegoWeatherData()
-			if err != nil {
-				log.Printf("Cronjob failed: %v", err)
-			} else {
-				log.Println("Cronjob successfully fetched and stored data")
+			select {
+			case <-ctx.Done(): // Listen for context cancellation
+				log.Println("Cronjob is shutting down...")
+				return
+			case <-ticker.C: // Trigger the cronjob every hour
+				runCronJob()
 			}
-			time.Sleep(1 * time.Hour)
 		}
 	}()
 }
@@ -83,8 +107,12 @@ func main() {
 		log.Fatalf("Failed to initialize the authenticator: %v", err)
 	}
 
+	// Setup context and wait group for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+
 	// Start the cronjob to fetch and store data every hour
-	startCronJob(handler)
+	startCronJob(ctx, &wg, handler)
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -106,9 +134,29 @@ func main() {
 	// Register routes and pass the handler and authenticator
 	api.RegisterRoutes(router, handler, auth)
 
-	// Start the server
-	err = router.Run(":" + config.AppConfig.Server.Port)
-	if err != nil {
-		log.Fatalf("Failed to start the server: %v", err)
+	// Start server in a goroutine and send server errors to a channel
+	serverErrors := make(chan error, 1)
+	go func() {
+		serverErrors <- router.Run(":" + config.AppConfig.Server.Port)
+	}()
+
+	// Setup channel to listen for interrupt or termination signals (SIGINT, SIGTERM)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for either an OS signal or a server error
+	select {
+	case err := <-serverErrors:
+		// Handle server error
+		log.Printf("Server encountered an error: %v", err)
+	case sig := <-quit:
+		// Handle OS signal (shutdown)
+		log.Printf("Shutdown signal (%v) received, shutting down gracefully...", sig)
 	}
+
+	// Trigger context cancellation and wait for cronjob to finish
+	cancel()
+	wg.Wait()
+
+	log.Println("Server shut down successfully.")
 }

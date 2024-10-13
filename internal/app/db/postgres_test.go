@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,14 +35,14 @@ func TestStoreIndegoData_Success(t *testing.T) {
 	indegoJSON, _ := json.Marshal(indegoData)
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("INSERT INTO indego_snapshots").
-		WithArgs(indegoData.LastUpdated, indegoJSON).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectExec("INSERT INTO indego_snapshots").
+		WithArgs(sqlmock.AnyArg(), indegoData.LastUpdated, indegoJSON).
+		WillReturnResult(sqlmock.NewResult(1, 1)) // Return success with any result
 	mock.ExpectCommit()
 
-	indegoSnapshotID, err := postgresDB.StoreIndegoData(indegoData)
+	returnedID, err := postgresDB.StoreIndegoData(indegoData)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, indegoSnapshotID)
+	assert.NotEqual(t, uuid.Nil, returnedID) // assert valid uuid is returned
 
 	err = mock.ExpectationsWereMet()
 	assert.NoError(t, err)
@@ -71,48 +72,30 @@ func TestStoreWeatherData_Success(t *testing.T) {
 	}
 
 	weatherJSON, _ := json.Marshal(weatherData)
-
-	mock.ExpectBegin()
-	mock.ExpectQuery("INSERT INTO weather_snapshots").
-		WithArgs(sqlmock.AnyArg(), weatherJSON).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
-	mock.ExpectCommit()
-
-	weatherSnapshotID, err := postgresDB.StoreWeatherData(weatherData)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, weatherSnapshotID)
-
-	err = mock.ExpectationsWereMet()
-	assert.NoError(t, err)
-}
-
-// Test for StoreSnapshotLink success
-func TestStoreSnapshotLink_Success(t *testing.T) {
-	_, mock, postgresDB := setupMockDB(t)
-	defer postgresDB.Close()
-
 	timestamp := time.Now()
 
 	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO snapshots").
-		WithArgs(timestamp, 1, 2).
+	mock.ExpectExec("INSERT INTO weather_snapshots").
+		WithArgs(sqlmock.AnyArg(), timestamp, weatherJSON).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	err := postgresDB.StoreSnapshotLink(1, 2, timestamp)
+	returnedID, err := postgresDB.StoreWeatherData(weatherData, timestamp)
 	assert.NoError(t, err)
+	assert.NotEqual(t, uuid.Nil, returnedID) // assert a valid uuid is returned
 
 	err = mock.ExpectationsWereMet()
 	assert.NoError(t, err)
 }
 
-func TestFetchSnapshot_Success(t *testing.T) {
+// Test for StoreSnapshot success
+func TestStoreSnapshot_Success(t *testing.T) {
 	_, mock, postgresDB := setupMockDB(t)
 	defer postgresDB.Close()
 
 	indegoData := models.IndegoData{
 		LastUpdated: time.Now(),
-		Features:    []models.StationFeature{}, // Simplified for this test
+		Features:    []models.StationFeature{},
 	}
 	weatherData := models.WeatherData{
 		Main: struct {
@@ -134,21 +117,71 @@ func TestFetchSnapshot_Success(t *testing.T) {
 
 	indegoJSON, _ := json.Marshal(indegoData)
 	weatherJSON, _ := json.Marshal(weatherData)
+	timestamp := time.Now()
 
-	mock.ExpectQuery("SELECT i.data, w.data FROM snapshots s").
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO indego_snapshots").
+		WithArgs(sqlmock.AnyArg(), timestamp, indegoJSON).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO weather_snapshots").
+		WithArgs(sqlmock.AnyArg(), timestamp, weatherJSON).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO snapshots").
+		WithArgs(sqlmock.AnyArg(), timestamp, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	returnedID, err := postgresDB.StoreSnapshot(indegoData, weatherData, timestamp)
+	assert.NoError(t, err)
+	assert.NotEqual(t, uuid.Nil, returnedID) // assert that a valid uuid is returned
+
+	err = mock.ExpectationsWereMet()
+	assert.NoError(t, err)
+}
+
+// Test for FetchSnapshot success
+func TestFetchSnapshot_Success(t *testing.T) {
+	_, mock, postgresDB := setupMockDB(t)
+	defer postgresDB.Close()
+
+	indegoData := models.IndegoData{
+		LastUpdated: time.Now(),
+		Features:    []models.StationFeature{},
+	}
+	weatherData := models.WeatherData{
+		Main: struct {
+			Temp      float64 `json:"temp"`
+			FeelsLike float64 `json:"feels_like"`
+			TempMin   float64 `json:"temp_min"`
+			TempMax   float64 `json:"temp_max"`
+			Pressure  int     `json:"pressure"`
+			Humidity  int     `json:"humidity"`
+		}{
+			Temp:      24.5,
+			FeelsLike: 25.0,
+			TempMin:   22.0,
+			TempMax:   26.0,
+			Pressure:  1015,
+			Humidity:  60,
+		},
+	}
+
+	indegoJSON, _ := json.Marshal(indegoData)
+	weatherJSON, _ := json.Marshal(weatherData)
+	snapshotTime := time.Now()
+
+	mock.ExpectQuery("SELECT s.timestamp, i.data, w.data FROM snapshots s").
 		WithArgs(sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"i.data", "w.data"}).
-			AddRow(indegoJSON, weatherJSON))
+		WillReturnRows(sqlmock.NewRows([]string{"s.timestamp", "i.data", "w.data"}).
+			AddRow(snapshotTime, indegoJSON, weatherJSON))
 
-	indegoResult, weatherResult, err := postgresDB.FetchSnapshot(time.Now())
+	indegoResult, weatherResult, returnedSnapshotTime, err := postgresDB.FetchSnapshot(time.Now())
 	assert.NoError(t, err)
 
 	// Compare the main fields
 	assert.Equal(t, indegoData.Features, indegoResult.Features)
 	assert.Equal(t, weatherData.Main.Temp, weatherResult.Main.Temp)
-
-	// Compare times with tolerance
-	assert.WithinDuration(t, indegoData.LastUpdated, indegoResult.LastUpdated, time.Second)
+	assert.WithinDuration(t, snapshotTime, returnedSnapshotTime, time.Second)
 
 	err = mock.ExpectationsWereMet()
 	assert.NoError(t, err)
@@ -159,11 +192,11 @@ func TestFetchSnapshot_NoRows(t *testing.T) {
 	_, mock, postgresDB := setupMockDB(t)
 	defer postgresDB.Close()
 
-	mock.ExpectQuery("SELECT i.data, w.data FROM snapshots s").
+	mock.ExpectQuery("SELECT s.timestamp, i.data, w.data FROM snapshots s").
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnError(sql.ErrNoRows)
 
-	_, _, err := postgresDB.FetchSnapshot(time.Now())
+	_, _, _, err := postgresDB.FetchSnapshot(time.Now())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no snapshot found")
 
@@ -176,12 +209,12 @@ func TestFetchSnapshot_InvalidJSON(t *testing.T) {
 	_, mock, postgresDB := setupMockDB(t)
 	defer postgresDB.Close()
 
-	mock.ExpectQuery("SELECT i.data, w.data FROM snapshots s").
+	mock.ExpectQuery("SELECT s.timestamp, i.data, w.data FROM snapshots s").
 		WithArgs(sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"i.data", "w.data"}).
-			AddRow("{invalid_json}", "{invalid_json}"))
+		WillReturnRows(sqlmock.NewRows([]string{"s.timestamp", "i.data", "w.data"}).
+			AddRow(time.Now(), "{invalid_json}", "{invalid_json}"))
 
-	_, _, err := postgresDB.FetchSnapshot(time.Now())
+	_, _, _, err := postgresDB.FetchSnapshot(time.Now())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to unmarshal Indego data")
 

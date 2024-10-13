@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/nyeinsoe26/indego-app/internal/app/api"
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	"github.com/nyeinsoe26/indego-app/internal/app/services"
@@ -89,13 +91,12 @@ func TestFunctional_FetchIndegoDataAndStore_Success(t *testing.T) {
 	// Mock data
 	indegoData := models.IndegoData{LastUpdated: time.Now()}
 	weatherData := models.WeatherData{}
+	mockUUID := uuid.New()
 
 	// Set up mock client and DB expectations
 	mockIndegoClient.On("FetchIndegoData").Return(indegoData, nil)
 	mockWeatherClient.On("FetchWeatherData", 39.9526, -75.1652).Return(weatherData, nil)
-	mockDB.On("StoreIndegoData", indegoData).Return(1, nil)
-	mockDB.On("StoreWeatherData", weatherData).Return(1, nil)
-	mockDB.On("StoreSnapshotLink", 1, 1, indegoData.LastUpdated).Return(nil)
+	mockDB.On("StoreSnapshot", indegoData, weatherData, indegoData.LastUpdated).Return(mockUUID, nil)
 
 	// Make the POST request to the actual endpoint
 	resp, err := http.Post(getTestURL("/api/v1/indego-data-fetch-and-store-it-db"), "application/json", nil)
@@ -119,9 +120,7 @@ func TestFunctional_FetchIndegoDataAndStore_IndegoError(t *testing.T) {
 
 	// Ensure no calls are made to WeatherClient or DB when IndegoClient fails
 	mockWeatherClient.AssertNotCalled(t, "FetchWeatherData", mock.Anything, mock.Anything)
-	mockDB.AssertNotCalled(t, "StoreIndegoData", mock.Anything)
-	mockDB.AssertNotCalled(t, "StoreWeatherData", mock.Anything)
-	mockDB.AssertNotCalled(t, "StoreSnapshotLink", mock.Anything, mock.Anything, mock.Anything)
+	mockDB.AssertNotCalled(t, "StoreSnapshot", mock.Anything, mock.Anything, mock.Anything)
 
 	// Make the POST request to the actual endpoint
 	resp, err := http.Post(getTestURL("/api/v1/indego-data-fetch-and-store-it-db"), "application/json", nil)
@@ -142,9 +141,10 @@ func TestFuncional_GetStationSnapshot_Success(t *testing.T) {
 	// Mock data
 	indegoData := models.IndegoData{LastUpdated: time.Now()}
 	weatherData := models.WeatherData{}
+	snapshotTime := time.Now()
 
 	// Set up mock DB expectations
-	mockDB.On("FetchSnapshot", mock.Anything).Return(indegoData, weatherData, nil)
+	mockDB.On("FetchSnapshot", mock.Anything).Return(indegoData, weatherData, snapshotTime, nil)
 
 	// Make the GET request with a valid query parameter
 	resp, err := http.Get(getTestURL("/api/v1/stations?at=2019-09-01T10:00:00Z"))
@@ -152,6 +152,22 @@ func TestFuncional_GetStationSnapshot_Success(t *testing.T) {
 
 	// Assert that the status code is 200 OK
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	mockDB.AssertExpectations(t)
+}
+
+func TestFuncional_GetStationSnapshot_NoRecord(t *testing.T) {
+	resetMocks()
+
+	// Set up mock DB expectations
+	mockDB.On("FetchSnapshot", mock.Anything).Return(models.IndegoData{}, models.WeatherData{}, time.Time{}, fmt.Errorf("failed to fetch snapshot"))
+
+	// Make the GET request with a valid query parameter
+	resp, err := http.Get(getTestURL("/api/v1/stations?at=2019-09-01T10:00:00Z"))
+	assert.NoError(t, err)
+
+	// Assert that the status code is 200 OK
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 	mockDB.AssertExpectations(t)
 }
@@ -184,9 +200,10 @@ func TestFunctional_GetSpecificStationSnapshot_Success(t *testing.T) {
 		LastUpdated: time.Now(),
 	}
 	weatherData := models.WeatherData{}
+	snapshotTime := time.Now()
 
 	// Set up mock DB expectations
-	mockDB.On("FetchSnapshot", mock.Anything).Return(indegoData, weatherData, nil)
+	mockDB.On("FetchSnapshot", mock.Anything).Return(indegoData, weatherData, snapshotTime, nil)
 
 	// Make the GET request with the kioskId and a query parameter
 	resp, err := http.Get(getTestURL("/api/v1/stations/3005?at=2019-09-01T10:00:00Z"))
@@ -219,9 +236,10 @@ func TestFunctional_GetSpecificStationSnapshot_StationNotFound(t *testing.T) {
 	// Mock data
 	indegoData := models.IndegoData{}
 	weatherData := models.WeatherData{}
+	snapshotTime := time.Now()
 
 	// Set up mock DB expectations
-	mockDB.On("FetchSnapshot", mock.Anything).Return(indegoData, weatherData, nil)
+	mockDB.On("FetchSnapshot", mock.Anything).Return(indegoData, weatherData, snapshotTime, nil)
 
 	// Make the GET request with the kioskId and a query parameter
 	resp, err := http.Get(getTestURL("/api/v1/stations/3005?at=2019-09-01T10:00:00Z"))

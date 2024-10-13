@@ -1,6 +1,9 @@
 package mocks
 
 import (
+	"time"
+
+	"github.com/google/uuid"
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	"github.com/stretchr/testify/mock"
 )
@@ -15,7 +18,7 @@ func (m *MockWeatherService) GetWeatherData(lat, lon float64) (models.WeatherDat
 	return args.Get(0).(models.WeatherData), args.Error(1)
 }
 
-func (m *MockWeatherService) StoreWeatherData(data models.WeatherData) (int, error) {
-	args := m.Called(data)
-	return args.Int(0), args.Error(1)
+func (m *MockWeatherService) StoreWeatherData(data models.WeatherData, timestamp time.Time) (uuid.UUID, error) {
+	args := m.Called(data, timestamp)
+	return args.Get(0).(uuid.UUID), args.Error(1)
 }

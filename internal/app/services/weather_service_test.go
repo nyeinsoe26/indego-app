@@ -3,7 +3,9 @@ package services
 import (
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/nyeinsoe26/indego-app/internal/app/models"
 	m "github.com/nyeinsoe26/indego-app/internal/mocks"
 	"github.com/stretchr/testify/assert"
@@ -62,15 +64,18 @@ func TestStoreWeatherData_Success(t *testing.T) {
 
 	// Create mock Database
 	mockDB := new(m.MockDatabase)
-	expectedSnapshotID := 123
+	expectedSnapshotID := uuid.New() // UUID instead of int
 	weatherData := models.WeatherData{}
-	mockDB.On("StoreWeatherData", weatherData).Return(expectedSnapshotID, nil)
+	timestamp := time.Now() // Add a timestamp argument for the test
+
+	// Mock expects two arguments: weatherData and timestamp
+	mockDB.On("StoreWeatherData", weatherData, timestamp).Return(expectedSnapshotID, nil)
 
 	// Create the WeatherService
 	service := NewWeatherService(mockWeatherClient, mockDB)
 
-	// Call the method
-	actualSnapshotID, err := service.StoreWeatherData(weatherData)
+	// Call the method with both arguments: weatherData and timestamp
+	actualSnapshotID, err := service.StoreWeatherData(weatherData, timestamp)
 
 	// Assert the results
 	assert.NoError(t, err)
@@ -87,13 +92,16 @@ func TestStoreWeatherData_Error(t *testing.T) {
 	// Create mock Database
 	mockDB := new(m.MockDatabase)
 	weatherData := models.WeatherData{}
-	mockDB.On("StoreWeatherData", weatherData).Return(0, errors.New("failed to store weather data"))
+	timestamp := time.Now() // Add a timestamp argument for the test
+
+	// Mock expects two arguments: weatherData and timestamp
+	mockDB.On("StoreWeatherData", weatherData, timestamp).Return(uuid.Nil, errors.New("failed to store weather data"))
 
 	// Create the WeatherService
 	service := NewWeatherService(mockWeatherClient, mockDB)
 
-	// Call the method
-	_, err := service.StoreWeatherData(weatherData)
+	// Call the method with both arguments: weatherData and timestamp
+	_, err := service.StoreWeatherData(weatherData, timestamp)
 
 	// Assert the results
 	assert.Error(t, err)
